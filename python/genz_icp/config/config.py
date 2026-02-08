@@ -8,8 +8,10 @@ class DataConfig(BaseModel):
 
 
 class MappingConfig(BaseModel):
-    voxel_size: float = 0.25
-    map_cleanup_radius: float = 400.0
+    # voxel_size: float = 0.25
+    voxel_size: float = 0.5
+    # map_cleanup_radius: float = 400.0
+    map_cleanup_radius: float = 100.0
     max_points_per_voxel: int = 1
     desired_num_voxelized_points: int = 2000
 
