@@ -1,0 +1,61 @@
+from __future__ import annotations
+
+import importlib
+from pathlib import Path
+from typing import Any, Dict, Optional
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from genz_icp.genz_icp import GenZConfig
+
+from .config import AdaptiveThresholdConfig, DataConfig, MappingConfig, RegistrationConfig
+
+
+class GenZPipelineConfig(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="genz_icp_")
+    out_dir: str = "results"
+    data: DataConfig = DataConfig()
+    mapping: MappingConfig = MappingConfig()
+    registration: RegistrationConfig = RegistrationConfig()
+    adaptive_threshold: AdaptiveThresholdConfig = AdaptiveThresholdConfig()
+
+
+def _yaml_source(config_file: Optional[Path]) -> Dict[str, Any]:
+    if config_file is None:
+        return {}
+    yaml = importlib.import_module("yaml")
+    with open(config_file) as cfg_file:
+        return yaml.safe_load(cfg_file) or {}
+
+
+def load_config(config_file: Optional[Path]) -> GenZPipelineConfig:
+    config = GenZPipelineConfig(**_yaml_source(config_file))
+    if config.data.max_range < config.data.min_range:
+        config.data.min_range = 0.0
+    return config
+
+
+def to_genz_config(config: GenZPipelineConfig) -> GenZConfig:
+    return GenZConfig(
+        max_range=config.data.max_range,
+        min_range=config.data.min_range,
+        map_cleanup_radius=config.mapping.map_cleanup_radius,
+        max_points_per_voxel=config.mapping.max_points_per_voxel,
+        voxel_size=config.mapping.voxel_size,
+        desired_num_voxelized_points=config.mapping.desired_num_voxelized_points,
+        min_motion_th=config.adaptive_threshold.min_motion_th,
+        initial_threshold=config.adaptive_threshold.initial_threshold,
+        planarity_threshold=config.adaptive_threshold.planarity_threshold,
+        deskew=config.data.deskew,
+        max_num_iterations=config.registration.max_num_iterations,
+        convergence_criterion=config.registration.convergence_criterion,
+    )
+
+
+def write_config(config: GenZPipelineConfig = GenZPipelineConfig(), filename: str = "genz_icp.yaml"):
+    with open(filename, "w") as outfile:
+        try:
+            yaml = importlib.import_module("yaml")
+            yaml.dump(config.model_dump(), outfile, default_flow_style=False)
+        except ModuleNotFoundError:
+            outfile.write(str(config.model_dump()))
