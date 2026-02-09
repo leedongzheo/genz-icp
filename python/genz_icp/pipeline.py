@@ -113,6 +113,9 @@ class OdometryPipeline:
             #     vis_infos
             # )
             # -------------------------
+            # Thêm thông tin số lượng điểm để tiện theo dõi
+            vis_infos["Planar Pts"] = _planar.shape[0]
+            vis_infos["Non-Planar Pts"] = non_planar.shape[0]
             self.visualizer.update(
                 raw_frame,     # Tham số 1: Source (Toàn cảnh) -> Sẽ hiện màu ĐỎ
                 non_planar,    # Tham số 2: Keypoints (Điểm tính toán) -> Sẽ hiện màu VÀNG
