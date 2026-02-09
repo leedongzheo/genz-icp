@@ -106,14 +106,20 @@ class OdometryPipeline:
             # vis_infos["Map Size"] = self.odometry.local_map.shape[0]
 
             # 3. Gửi xuống Visualizer kèm vis_infos
+            # self.visualizer.update(
+            #     non_planar, 
+            #     self.odometry.local_map, 
+            #     self.odometry.last_pose, 
+            #     vis_infos
+            # )
+            # -------------------------
             self.visualizer.update(
-                non_planar, 
+                raw_frame,     # Tham số 1: Source (Toàn cảnh) -> Sẽ hiện màu ĐỎ
+                non_planar,    # Tham số 2: Keypoints (Điểm tính toán) -> Sẽ hiện màu VÀNG
                 self.odometry.local_map, 
-                self.odometry.last_pose, 
+                self.odometry.last_pose,
                 vis_infos
             )
-            # -------------------------
-
         self.visualizer.close()
     @staticmethod
     def save_poses_kitti_format(filename: str, poses: np.ndarray):
