@@ -15,17 +15,24 @@ CENTER_VIEWPOINT_BUTTON = "CENTER VIEWPOINT\n\t\t\t\t[C]"
 QUIT_BUTTON = "QUIT\n  [Q]"
 
 BACKGROUND_COLOR = [0.0, 0.0, 0.0]
-FRAME_COLOR = [0.8470, 0.1058, 0.3764]       # Màu đỏ hồng (Current Scan)
-KEYPOINTS_COLOR = [1, 0.7568, 0.0274]        # Màu vàng (Keypoints)
-LOCAL_MAP_COLOR = [0.0, 0.3019, 0.2509]      # Màu xanh (Map)
-TRAJECTORY_COLOR = [0.1176, 0.5333, 0.8980]  # Màu xanh dương (Đường đi)
 
-FRAME_PTS_SIZE = 0.06
-KEYPOINTS_PTS_SIZE = 0.2
+# --- MÀU SẮC MỚI THEO YÊU CẦU ---
+# Màu Xanh dương cho Planar (Mặt phẳng)
+PLANAR_COLOR = [0.0, 0.4, 1.0]
+# Màu Vàng tươi cho Non-Planar (Không phẳng)
+NON_PLANAR_COLOR = [1.0, 0.8, 0.0]
+
+LOCAL_MAP_COLOR = [0.0, 0.3019, 0.2509]      # Màu xanh lá đậm (Map cũ)
+TRAJECTORY_COLOR = [1.0, 0.0, 0.0]          # Màu đỏ (Đường đi)
+
+# Kích thước điểm mặc định
+PLANAR_PTS_SIZE = 0.1
+NON_PLANAR_PTS_SIZE = 0.15
 MAP_PTS_SIZE = 0.08
 
 class StubVisualizer(ABC):
-    def update(self, source, local_map, pose): pass
+    # Update signature để khớp với thay đổi
+    def update(self, planar, non_planar, local_map, pose, vis_infos=None): pass
     def close(self): pass
 
 class RegistrationVisualizer(StubVisualizer):
@@ -38,16 +45,18 @@ class RegistrationVisualizer(StubVisualizer):
 
         # Trạng thái giao diện
         self._background_color = BACKGROUND_COLOR
-        self._frame_size = FRAME_PTS_SIZE
-        self._keypoints_size = KEYPOINTS_PTS_SIZE
+        self._planar_size = PLANAR_PTS_SIZE
+        self._non_planar_size = NON_PLANAR_PTS_SIZE
         self._map_size = MAP_PTS_SIZE
         
-        self._block_execution = True  # Mặc định PAUSE khi bắt đầu
+        self._block_execution = True  # Mặc định PAUSE
         self._play_mode = False
-        self._toggle_frame = True
-        self._toggle_keypoints = False # Tắt mặc định vì GenZ pipeline chưa gửi keypoints riêng
+
+        # Toggles hiển thị
+        self._toggle_planar = True
+        self._toggle_non_planar = True
         self._toggle_map = True
-        self._global_view = False     # Mặc định nhìn Local View (giống game đua xe)
+        self._global_view = False
 
         # Dữ liệu
         self._trajectory = []
@@ -55,48 +64,34 @@ class RegistrationVisualizer(StubVisualizer):
         self._vis_infos = {}
         self._selected_pose = ""
         
-        # FPS Counter nội bộ
-        self._last_time = time.time()
-        self._fps_avg = 0.0
-
         self._initialize_visualizer()
 
-    def update(self, source: np.ndarray, local_map: np.ndarray, pose: np.ndarray, vis_infos: dict = None):
+    # --- HÀM UPDATE ĐÃ SỬA ĐỔI ---
+    def update(self, planar: np.ndarray, non_planar: np.ndarray, local_map: np.ndarray, pose: np.ndarray, vis_infos: dict = None):
         """
-        source: Points (Non-planar) từ frame hiện tại
-        local_map: Map toàn cục
-        pose: Vị trí hiện tại
-        vis_infos: Dictionary chứa thông tin hiển thị (FPS, Error, etc.)
+        Nhận riêng Planar (Xanh) và Non-planar (Vàng) để hiển thị
         """
-        
-        # 1. Cập nhật bảng thông tin (Sidebar)
         if vis_infos is not None:
-            # Sắp xếp cho đẹp (key ngắn lên trước)
             self._vis_infos = dict(sorted(vis_infos.items(), key=lambda item: len(item[0])))
         
-        # 2. Chuẩn bị dữ liệu (Keypoints tạm để rỗng hoặc bằng source)
-        keypoints = np.zeros((0, 3)) 
-
-        # 3. Cập nhật hình học 3D
-        self._update_geometries(source, keypoints, local_map, pose)
+        # Cập nhật hình học 3D với dữ liệu đã tách
+        self._update_geometries(planar, non_planar, local_map, pose)
         self._last_pose = pose
 
-        # 4. Vòng lặp Render (Chặn nếu đang Pause)
+        # Vòng lặp Render
         while self._block_execution:
             self._ps.frame_tick()
             if self._play_mode:
                 break
-        
-        # Render 1 frame rồi thoát
         self._block_execution = not self._block_execution
-# ______________________________________________________________________
+
     def close(self):
         self._ps.unshow()
 
-    # --- CÁC HÀM RIÊNG TƯ (PRIVATE METHODS) GIỮ NGUYÊN TỪ KISS-ICP ---
+    # --- PRIVATE METHODS ---
 
     def _initialize_visualizer(self):
-        self._ps.set_program_name("GenZ-ICP Visualizer")
+        self._ps.set_program_name("GenZ-ICP Visualizer (Planar/Non-Planar View)")
         self._ps.init()
         self._ps.set_ground_plane_mode("none")
         self._ps.set_background_color(BACKGROUND_COLOR)
@@ -104,35 +99,29 @@ class RegistrationVisualizer(StubVisualizer):
         self._ps.set_user_callback(self._main_gui_callback)
         self._ps.set_build_default_gui_panels(False)
 
-    def _update_geometries(self, source, keypoints, target_map, pose):
-        # CURRENT FRAME
-        frame_cloud = self._ps.register_point_cloud("current_frame", source, color=FRAME_COLOR, point_render_mode="quad")
-        frame_cloud.set_radius(self._frame_size, relative=False)
-        if self._global_view:
-            frame_cloud.set_transform(pose)
-        else:
-            frame_cloud.set_transform(np.eye(4))
-        frame_cloud.set_enabled(self._toggle_frame)
+    def _update_geometries(self, planar, non_planar, target_map, pose):
+        # 1. PLANAR POINTS (MÀU XANH DƯƠNG)
+        planar_cloud = self._ps.register_point_cloud("planar_points", planar, color=PLANAR_COLOR, point_render_mode="quad")
+        planar_cloud.set_radius(self._planar_size, relative=False)
+        if self._global_view: planar_cloud.set_transform(pose)
+        else: planar_cloud.set_transform(np.eye(4))
+        planar_cloud.set_enabled(self._toggle_planar)
 
-        # KEYPOINTS
-        keypoints_cloud = self._ps.register_point_cloud("keypoints", keypoints, color=KEYPOINTS_COLOR, point_render_mode="quad")
-        keypoints_cloud.set_radius(self._keypoints_size, relative=False)
-        if self._global_view:
-            keypoints_cloud.set_transform(pose)
-        else:
-            keypoints_cloud.set_transform(np.eye(4))
-        keypoints_cloud.set_enabled(self._toggle_keypoints)
+        # 2. NON-PLANAR POINTS (MÀU VÀNG)
+        non_planar_cloud = self._ps.register_point_cloud("non_planar_points", non_planar, color=NON_PLANAR_COLOR, point_render_mode="quad")
+        non_planar_cloud.set_radius(self._non_planar_size, relative=False)
+        if self._global_view: non_planar_cloud.set_transform(pose)
+        else: non_planar_cloud.set_transform(np.eye(4))
+        non_planar_cloud.set_enabled(self._toggle_non_planar)
 
-        # LOCAL MAP (Sửa: dùng target_map trực tiếp vì nó là numpy array rồi)
+        # 3. LOCAL MAP (MÀU XANH LÁ ĐẬM)
         map_cloud = self._ps.register_point_cloud("local_map", target_map, color=LOCAL_MAP_COLOR, point_render_mode="quad")
         map_cloud.set_radius(self._map_size, relative=False)
-        if self._global_view:
-            map_cloud.set_transform(np.eye(4))
-        else:
-            map_cloud.set_transform(np.linalg.inv(pose))
+        if self._global_view: map_cloud.set_transform(np.eye(4))
+        else: map_cloud.set_transform(np.linalg.inv(pose))
         map_cloud.set_enabled(self._toggle_map)
 
-        # TRAJECTORY
+        # 4. TRAJECTORY (MÀU ĐỎ)
         self._trajectory.append(pose[:3, 3])
         if self._global_view:
             self._register_trajectory()
@@ -157,14 +146,13 @@ class RegistrationVisualizer(StubVisualizer):
         self._gui.Separator()
         self._vis_infos_callback()
         self._gui.Separator()
-        self._toggle_buttons_andslides_callback()
+        self._toggle_buttons_andslides_callback() # <-- Cập nhật hàm này
         self._background_color_callback()
         self._global_view_callback()
         self._gui.SameLine()
         self._center_viewpoint_callback()
         self._gui.Separator()
         self._quit_callback()
-        self._trajectory_pick_callback()
 
     def _start_pause_callback(self):
         button_name = PAUSE_BUTTON if self._play_mode else START_BUTTON
@@ -173,7 +161,7 @@ class RegistrationVisualizer(StubVisualizer):
 
     def _next_frame_callback(self):
         if self._gui.Button(NEXT_FRAME_BUTTON) or self._gui.IsKeyPressed(self._gui.ImGuiKey_N):
-            self._block_execution = False # Cho phép chạy 1 tick
+            self._block_execution = False
 
     def _screenshot_callback(self):
         if self._gui.Button(SCREENSHOT_BUTTON) or self._gui.IsKeyPressed(self._gui.ImGuiKey_S):
@@ -190,16 +178,24 @@ class RegistrationVisualizer(StubVisualizer):
         if self._gui.Button(CENTER_VIEWPOINT_BUTTON) or self._gui.IsKeyPressed(self._gui.ImGuiKey_C):
             self._ps.reset_camera_to_home_view()
 
+    # --- CẬP NHẬT SLIDER VÀ CHECKBOX CHO PLANAR/NON-PLANAR ---
     def _toggle_buttons_andslides_callback(self):
-        # Slider chỉnh size điểm
-        changed, self._frame_size = self._gui.SliderFloat("##frame", self._frame_size, 0.01, 0.6)
-        if changed: self._ps.get_point_cloud("current_frame").set_radius(self._frame_size, relative=False)
-        self._gui.SameLine(); changed, self._toggle_frame = self._gui.Checkbox("Frame", self._toggle_frame)
-        if changed: self._ps.get_point_cloud("current_frame").set_enabled(self._toggle_frame)
+        # 1. Controls cho PLANAR (Xanh dương)
+        changed, self._planar_size = self._gui.SliderFloat("##planar", self._planar_size, 0.01, 0.6)
+        if changed: self._ps.get_point_cloud("planar_points").set_radius(self._planar_size, relative=False)
+        self._gui.SameLine(); changed, self._toggle_planar = self._gui.Checkbox("Planar (Blue)", self._toggle_planar)
+        if changed: self._ps.get_point_cloud("planar_points").set_enabled(self._toggle_planar)
 
+        # 2. Controls cho NON-PLANAR (Vàng)
+        changed, self._non_planar_size = self._gui.SliderFloat("##nonplanar", self._non_planar_size, 0.01, 0.6)
+        if changed: self._ps.get_point_cloud("non_planar_points").set_radius(self._non_planar_size, relative=False)
+        self._gui.SameLine(); changed, self._toggle_non_planar = self._gui.Checkbox("Non-Planar (Yellow)", self._toggle_non_planar)
+        if changed: self._ps.get_point_cloud("non_planar_points").set_enabled(self._toggle_non_planar)
+
+        # 3. Controls cho MAP (Xanh lá)
         changed, self._map_size = self._gui.SliderFloat("##map", self._map_size, 0.01, 0.6)
         if changed: self._ps.get_point_cloud("local_map").set_radius(self._map_size, relative=False)
-        self._gui.SameLine(); changed, self._toggle_map = self._gui.Checkbox("Map", self._toggle_map)
+        self._gui.SameLine(); changed, self._toggle_map = self._gui.Checkbox("Map (Green)", self._toggle_map)
         if changed: self._ps.get_point_cloud("local_map").set_enabled(self._toggle_map)
 
     def _background_color_callback(self):
@@ -210,14 +206,15 @@ class RegistrationVisualizer(StubVisualizer):
         name = LOCAL_VIEW_BUTTON if self._global_view else GLOBAL_VIEW_BUTTON
         if self._gui.Button(name) or self._gui.IsKeyPressed(self._gui.ImGuiKey_G):
             self._global_view = not self._global_view
-            # Logic chuyển đổi view (Transform lại các cloud)
             inv_pose = np.linalg.inv(self._last_pose)
             if self._global_view:
-                self._ps.get_point_cloud("current_frame").set_transform(self._last_pose)
+                self._ps.get_point_cloud("planar_points").set_transform(self._last_pose)
+                self._ps.get_point_cloud("non_planar_points").set_transform(self._last_pose)
                 self._ps.get_point_cloud("local_map").set_transform(np.eye(4))
                 self._register_trajectory()
             else:
-                self._ps.get_point_cloud("current_frame").set_transform(np.eye(4))
+                self._ps.get_point_cloud("planar_points").set_transform(np.eye(4))
+                self._ps.get_point_cloud("non_planar_points").set_transform(np.eye(4))
                 self._ps.get_point_cloud("local_map").set_transform(inv_pose)
                 self._unregister_trajectory()
             self._ps.reset_camera_to_home_view()
@@ -227,10 +224,6 @@ class RegistrationVisualizer(StubVisualizer):
         if self._gui.Button(QUIT_BUTTON) or self._gui.IsKeyPressed(self._gui.ImGuiKey_Q):
             self._ps.unshow()
             os._exit(0)
-
-    def _trajectory_pick_callback(self):
-        # Hàm này để click chuột vào quỹ đạo xem tọa độ (tùy chọn)
-        pass
 # ___________________BO___________________________
 # from __future__ import annotations
 
