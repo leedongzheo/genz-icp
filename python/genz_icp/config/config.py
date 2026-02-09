@@ -4,14 +4,14 @@ from typing import Optional
 class DataConfig(BaseModel):
     max_range: float = 100.0
     min_range: float = 0.5
-    # deskew: bool = False
-    deskew: bool = True
+    deskew: bool = False
+    # deskew: bool = True
 
 
 class MappingConfig(BaseModel):
     # voxel_size: float = 0.25
-    voxel_size: float = 0.5
-    # voxel_size: Optional[float] = None
+    # voxel_size: float = 0.5
+    voxel_size: Optional[float] = None
     # map_cleanup_radius: float = 400.0
     map_cleanup_radius: float = 100.0
     max_points_per_voxel: int = 1
@@ -20,7 +20,8 @@ class MappingConfig(BaseModel):
 
 
 class RegistrationConfig(BaseModel):
-    max_num_iterations: int = 150
+    # max_num_iterations: int = 150
+    max_num_iterations: int = 100
     # max_num_iterations: int = 500
     convergence_criterion: float = 0.0001
 
@@ -28,4 +29,4 @@ class RegistrationConfig(BaseModel):
 class AdaptiveThresholdConfig(BaseModel):
     initial_threshold: float = 2.0
     min_motion_th: float = 0.1
-    planarity_threshold: float = 0.1
+    planarity_threshold: float = 0.2
