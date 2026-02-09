@@ -16,23 +16,22 @@ QUIT_BUTTON = "QUIT\n  [Q]"
 
 BACKGROUND_COLOR = [0.0, 0.0, 0.0]
 
-# --- MÀU SẮC MỚI THEO YÊU CẦU ---
-# Màu Xanh dương cho Planar (Mặt phẳng)
-PLANAR_COLOR = [0.0, 0.4, 1.0]
-# Màu Vàng tươi cho Non-Planar (Không phẳng)
-NON_PLANAR_COLOR = [1.0, 0.8, 0.0]
-
-LOCAL_MAP_COLOR = [0.0, 0.3019, 0.2509]      # Màu xanh lá đậm (Map cũ)
-TRAJECTORY_COLOR = [1.0, 0.0, 0.0]          # Màu đỏ (Đường đi)
+# --- BẢNG MÀU ---
+FRAME_COLOR = [0.8470, 0.1058, 0.3764]       # Đỏ hồng (Source - Raw Frame)
+PLANAR_COLOR = [0.0, 0.4, 1.0]               # Xanh dương (Planar)
+NON_PLANAR_COLOR = [1.0, 0.8, 0.0]           # Vàng tươi (Non-Planar)
+LOCAL_MAP_COLOR = [0.0, 0.3019, 0.2509]      # Xanh lá đậm (Map)
+TRAJECTORY_COLOR = [1.0, 0.0, 0.0]           # Đỏ tươi (Đường đi)
 
 # Kích thước điểm mặc định
+FRAME_PTS_SIZE = 0.05
 PLANAR_PTS_SIZE = 0.1
 NON_PLANAR_PTS_SIZE = 0.15
 MAP_PTS_SIZE = 0.08
 
 class StubVisualizer(ABC):
-    # Update signature để khớp với thay đổi
-    def update(self, planar, non_planar, local_map, pose, vis_infos=None): pass
+    # Cập nhật signature: Thêm source vào đầu
+    def update(self, source, planar, non_planar, local_map, pose, vis_infos=None): pass
     def close(self): pass
 
 class RegistrationVisualizer(StubVisualizer):
@@ -45,14 +44,16 @@ class RegistrationVisualizer(StubVisualizer):
 
         # Trạng thái giao diện
         self._background_color = BACKGROUND_COLOR
+        self._frame_size = FRAME_PTS_SIZE
         self._planar_size = PLANAR_PTS_SIZE
         self._non_planar_size = NON_PLANAR_PTS_SIZE
         self._map_size = MAP_PTS_SIZE
         
-        self._block_execution = True  # Mặc định PAUSE
+        self._block_execution = True
         self._play_mode = False
 
         # Toggles hiển thị
+        self._toggle_frame = False        # Mặc định tắt Source (để nhìn rõ feature hơn)
         self._toggle_planar = True
         self._toggle_non_planar = True
         self._toggle_map = True
@@ -66,19 +67,21 @@ class RegistrationVisualizer(StubVisualizer):
         
         self._initialize_visualizer()
 
-    # --- HÀM UPDATE ĐÃ SỬA ĐỔI ---
-    def update(self, planar: np.ndarray, non_planar: np.ndarray, local_map: np.ndarray, pose: np.ndarray, vis_infos: dict = None):
+    # --- HÀM UPDATE MỚI (NHẬN 4 LOẠI DỮ LIỆU HÌNH HỌC) ---
+    def update(self, source: np.ndarray, planar: np.ndarray, non_planar: np.ndarray, local_map: np.ndarray, pose: np.ndarray, vis_infos: dict = None):
         """
-        Nhận riêng Planar (Xanh) và Non-planar (Vàng) để hiển thị
+        source: Raw Frame (Toàn cảnh)
+        planar: Điểm mặt phẳng
+        non_planar: Điểm không phẳng
+        local_map: Bản đồ
+        pose: Vị trí xe
         """
         if vis_infos is not None:
             self._vis_infos = dict(sorted(vis_infos.items(), key=lambda item: len(item[0])))
         
-        # Cập nhật hình học 3D với dữ liệu đã tách
-        self._update_geometries(planar, non_planar, local_map, pose)
+        self._update_geometries(source, planar, non_planar, local_map, pose)
         self._last_pose = pose
 
-        # Vòng lặp Render
         while self._block_execution:
             self._ps.frame_tick()
             if self._play_mode:
@@ -91,7 +94,7 @@ class RegistrationVisualizer(StubVisualizer):
     # --- PRIVATE METHODS ---
 
     def _initialize_visualizer(self):
-        self._ps.set_program_name("GenZ-ICP Visualizer (Planar/Non-Planar View)")
+        self._ps.set_program_name("GenZ-ICP Visualizer")
         self._ps.init()
         self._ps.set_ground_plane_mode("none")
         self._ps.set_background_color(BACKGROUND_COLOR)
@@ -99,7 +102,14 @@ class RegistrationVisualizer(StubVisualizer):
         self._ps.set_user_callback(self._main_gui_callback)
         self._ps.set_build_default_gui_panels(False)
 
-    def _update_geometries(self, planar, non_planar, target_map, pose):
+    def _update_geometries(self, source, planar, non_planar, target_map, pose):
+        # 0. SOURCE / RAW FRAME (MÀU ĐỎ HỒNG)
+        frame_cloud = self._ps.register_point_cloud("current_frame", source, color=FRAME_COLOR, point_render_mode="quad")
+        frame_cloud.set_radius(self._frame_size, relative=False)
+        if self._global_view: frame_cloud.set_transform(pose)
+        else: frame_cloud.set_transform(np.eye(4))
+        frame_cloud.set_enabled(self._toggle_frame)
+
         # 1. PLANAR POINTS (MÀU XANH DƯƠNG)
         planar_cloud = self._ps.register_point_cloud("planar_points", planar, color=PLANAR_COLOR, point_render_mode="quad")
         planar_cloud.set_radius(self._planar_size, relative=False)
@@ -146,7 +156,7 @@ class RegistrationVisualizer(StubVisualizer):
         self._gui.Separator()
         self._vis_infos_callback()
         self._gui.Separator()
-        self._toggle_buttons_andslides_callback() # <-- Cập nhật hàm này
+        self._toggle_buttons_andslides_callback()
         self._background_color_callback()
         self._global_view_callback()
         self._gui.SameLine()
@@ -178,21 +188,26 @@ class RegistrationVisualizer(StubVisualizer):
         if self._gui.Button(CENTER_VIEWPOINT_BUTTON) or self._gui.IsKeyPressed(self._gui.ImGuiKey_C):
             self._ps.reset_camera_to_home_view()
 
-    # --- CẬP NHẬT SLIDER VÀ CHECKBOX CHO PLANAR/NON-PLANAR ---
     def _toggle_buttons_andslides_callback(self):
-        # 1. Controls cho PLANAR (Xanh dương)
+        # 0. SOURCE (Mới thêm)
+        changed, self._frame_size = self._gui.SliderFloat("##frame", self._frame_size, 0.01, 0.6)
+        if changed: self._ps.get_point_cloud("current_frame").set_radius(self._frame_size, relative=False)
+        self._gui.SameLine(); changed, self._toggle_frame = self._gui.Checkbox("Source (Red)", self._toggle_frame)
+        if changed: self._ps.get_point_cloud("current_frame").set_enabled(self._toggle_frame)
+
+        # 1. PLANAR
         changed, self._planar_size = self._gui.SliderFloat("##planar", self._planar_size, 0.01, 0.6)
         if changed: self._ps.get_point_cloud("planar_points").set_radius(self._planar_size, relative=False)
         self._gui.SameLine(); changed, self._toggle_planar = self._gui.Checkbox("Planar (Blue)", self._toggle_planar)
         if changed: self._ps.get_point_cloud("planar_points").set_enabled(self._toggle_planar)
 
-        # 2. Controls cho NON-PLANAR (Vàng)
+        # 2. NON-PLANAR
         changed, self._non_planar_size = self._gui.SliderFloat("##nonplanar", self._non_planar_size, 0.01, 0.6)
         if changed: self._ps.get_point_cloud("non_planar_points").set_radius(self._non_planar_size, relative=False)
         self._gui.SameLine(); changed, self._toggle_non_planar = self._gui.Checkbox("Non-Planar (Yellow)", self._toggle_non_planar)
         if changed: self._ps.get_point_cloud("non_planar_points").set_enabled(self._toggle_non_planar)
 
-        # 3. Controls cho MAP (Xanh lá)
+        # 3. MAP
         changed, self._map_size = self._gui.SliderFloat("##map", self._map_size, 0.01, 0.6)
         if changed: self._ps.get_point_cloud("local_map").set_radius(self._map_size, relative=False)
         self._gui.SameLine(); changed, self._toggle_map = self._gui.Checkbox("Map (Green)", self._toggle_map)
@@ -208,11 +223,13 @@ class RegistrationVisualizer(StubVisualizer):
             self._global_view = not self._global_view
             inv_pose = np.linalg.inv(self._last_pose)
             if self._global_view:
+                self._ps.get_point_cloud("current_frame").set_transform(self._last_pose)
                 self._ps.get_point_cloud("planar_points").set_transform(self._last_pose)
                 self._ps.get_point_cloud("non_planar_points").set_transform(self._last_pose)
                 self._ps.get_point_cloud("local_map").set_transform(np.eye(4))
                 self._register_trajectory()
             else:
+                self._ps.get_point_cloud("current_frame").set_transform(np.eye(4))
                 self._ps.get_point_cloud("planar_points").set_transform(np.eye(4))
                 self._ps.get_point_cloud("non_planar_points").set_transform(np.eye(4))
                 self._ps.get_point_cloud("local_map").set_transform(inv_pose)
