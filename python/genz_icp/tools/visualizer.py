@@ -61,31 +61,23 @@ class RegistrationVisualizer(StubVisualizer):
 
         self._initialize_visualizer()
 
-    def update(self, source: np.ndarray, local_map: np.ndarray, pose: np.ndarray):
+    def update(self, source: np.ndarray, local_map: np.ndarray, pose: np.ndarray, vis_infos: dict = None):
         """
-        Hàm này được thiết kế để khớp tham số với pipeline.py của GenZ-ICP
         source: Points (Non-planar) từ frame hiện tại
-        local_map: Map toàn cục (Numpy array)
-        pose: Vị trí hiện tại (4x4 Matrix)
+        local_map: Map toàn cục
+        pose: Vị trí hiện tại
+        vis_infos: Dictionary chứa thông tin hiển thị (FPS, Error, etc.)
         """
-        # 1. Tính toán FPS đơn giản
-        curr_time = time.time()
-        dt = curr_time - self._last_time
-        if dt > 0:
-            fps = 1.0 / dt
-            self._fps_avg = 0.9 * self._fps_avg + 0.1 * fps # Moving average
-        self._last_time = curr_time
         
-        self._vis_infos = {
-            "FPS": f"{int(self._fps_avg)}",
-            "Map Size": f"{local_map.shape[0]} pts"
-        }
-
-        # 2. Chuẩn bị dữ liệu (GenZ pipeline hiện tại gửi non_planar vào source)
-        # Vì pipeline chưa tách keypoints, ta tạm để keypoints rỗng hoặc bằng source
+        # 1. Cập nhật bảng thông tin (Sidebar)
+        if vis_infos is not None:
+            # Sắp xếp cho đẹp (key ngắn lên trước)
+            self._vis_infos = dict(sorted(vis_infos.items(), key=lambda item: len(item[0])))
+        
+        # 2. Chuẩn bị dữ liệu (Keypoints tạm để rỗng hoặc bằng source)
         keypoints = np.zeros((0, 3)) 
 
-        # 3. Cập nhật hình học
+        # 3. Cập nhật hình học 3D
         self._update_geometries(source, keypoints, local_map, pose)
         self._last_pose = pose
 
@@ -95,9 +87,9 @@ class RegistrationVisualizer(StubVisualizer):
             if self._play_mode:
                 break
         
-        # Nếu đang Play, render 1 frame rồi thoát để pipeline chạy tiếp
-        self._block_execution = not self._block_execution # Toggle logic
-
+        # Render 1 frame rồi thoát
+        self._block_execution = not self._block_execution
+# ______________________________________________________________________
     def close(self):
         self._ps.unshow()
 
