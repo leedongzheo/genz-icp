@@ -117,11 +117,12 @@ class OdometryPipeline:
             vis_infos["Planar Pts"] = _planar.shape[0]
             vis_infos["Non-Planar Pts"] = non_planar.shape[0]
             self.visualizer.update(
-                raw_frame,     # Tham số 1: Source (Toàn cảnh) -> Sẽ hiện màu ĐỎ
-                non_planar,    # Tham số 2: Keypoints (Điểm tính toán) -> Sẽ hiện màu VÀNG
-                self.odometry.local_map, 
-                self.odometry.last_pose,
-                vis_infos
+                raw_frame,               # Tham số 1: Source (Toàn cảnh - Đỏ)
+                _planar,                 # Tham số 2: Planar (Xanh dương)
+                non_planar,              # Tham số 3: Non-Planar (Vàng)
+                self.odometry.local_map, # Tham số 4: Map
+                self.odometry.last_pose, # Tham số 5: Pose
+                vis_infos                # Tham số 6: Info
             )
         self.visualizer.close()
     @staticmethod
