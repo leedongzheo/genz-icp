@@ -170,8 +170,9 @@ void VisualizeStatus(size_t planar_count, size_t non_planar_count, double alpha)
     std::cout << "]\n";
     std::cout.flush();
 }
-}  // namespace
 */
+}  // namespace
+
 namespace genz_icp {
 
 Registration::Registration(int max_num_iteration, double convergence_criterion)
