@@ -62,22 +62,59 @@ class OdometryPipeline:
         self._write_local_maps()
         return self.results
 
+    # def _run_pipeline(self):
+    #     for idx in get_progress_bar(self._first, self._last):
+    #         raw_frame, timestamps = self._dataset[idx]
+    #         start_time = time.perf_counter_ns()
+    #         _planar, non_planar = (
+    #             self.odometry.register_frame(raw_frame, timestamps)
+    #             if getattr(timestamps, "size", 0)
+    #             else self.odometry.register_frame(raw_frame)
+    #         )
+    #         self.poses[idx - self._first] = self.odometry.last_pose
+    #         self.times[idx - self._first] = time.perf_counter_ns() - start_time
+
+    #         self.visualizer.update(non_planar, self.odometry.local_map, self.odometry.last_pose)
+
+    #     self.visualizer.close()
     def _run_pipeline(self):
+        # Tạo từ điển chứa thông tin hiển thị
+        vis_infos = {} 
+        
         for idx in get_progress_bar(self._first, self._last):
             raw_frame, timestamps = self._dataset[idx]
             start_time = time.perf_counter_ns()
+            
+            # Chạy thuật toán
             _planar, non_planar = (
                 self.odometry.register_frame(raw_frame, timestamps)
                 if getattr(timestamps, "size", 0)
                 else self.odometry.register_frame(raw_frame)
             )
+            
+            # Lưu kết quả pose và thời gian
             self.poses[idx - self._first] = self.odometry.last_pose
             self.times[idx - self._first] = time.perf_counter_ns() - start_time
 
-            self.visualizer.update(non_planar, self.odometry.local_map, self.odometry.last_pose)
+            # --- PHẦN MỚI THÊM VÀO ---
+            # 1. Tính FPS hiện tại
+            fps = self._get_fps() 
+            
+            # 2. Đóng gói thông tin vào dict
+            vis_infos["FPS"] = int(np.floor(fps))
+            # Bạn có thể thêm các thông tin khác nếu thích, ví dụ:
+            # vis_infos["Map Size"] = self.odometry.local_map.shape[0]
+
+            # 3. Gửi xuống Visualizer kèm vis_infos
+            self.visualizer.update(
+                non_planar, 
+                self.odometry.local_map, 
+                self.odometry.last_pose, 
+                vis_infos
+            )
+            # -------------------------
 
         self.visualizer.close()
-
     @staticmethod
     def save_poses_kitti_format(filename: str, poses: np.ndarray):
         np.savetxt(fname=f"{filename}_kitti.txt", X=poses[:, :3].reshape(-1, 12))
