@@ -149,14 +149,14 @@ void VisualizeStatus(size_t planar_count, size_t non_planar_count, double alpha)
     const std::string non_planar_color = "\033[1;38;2;238;51;119m";
     const std::string alpha_color = "\033[1;32m";
 
-    // printf("\033[2J\033[1;1H"); // Clear terminal
-    // std::cout << "====================== GenZ-ICP ======================\n";
-    // std::cout << non_planar_color << "# of non-planar points: " << non_planar_count << ", ";
-    // std::cout << planar_color << "# of planar points: " << planar_count << "\033[0m\n";
+    printf("\033[2J\033[1;1H"); // Clear terminal
+    std::cout << "====================== GenZ-ICP ======================\n";
+    std::cout << non_planar_color << "# of non-planar points: " << non_planar_count << ", ";
+    std::cout << planar_color << "# of planar points: " << planar_count << "\033[0m\n";
     
-    // std::cout << "Unstructured  <-----  ";
-    // std::cout << alpha_color << "alpha: " << std::fixed << std::setprecision(3) << alpha << "\033[0m";
-    // std::cout << "  ----->  Structured\n";
+    std::cout << "Unstructured  <-----  ";
+    std::cout << alpha_color << "alpha: " << std::fixed << std::setprecision(3) << alpha << "\033[0m";
+    std::cout << "  ----->  Structured\n";
 
     const int alpha_location = static_cast<int>(bar_width * alpha); 
     std::cout << "[";
@@ -208,7 +208,7 @@ std::tuple<Sophus::SE3d, std::vector<Eigen::Vector3d>, std::vector<Eigen::Vector
         T_icp = estimation * T_icp;
         // Termination criteria
         if (dx.norm() < convergence_criterion_ || j == max_num_iterations_ - 1) {
-            VisualizeStatus(planar_count, non_planar_count, alpha);
+            // VisualizeStatus(planar_count, non_planar_count, alpha);
             final_planar_points = src_planar;
             final_non_planar_points = src_non_planar;
             break;
