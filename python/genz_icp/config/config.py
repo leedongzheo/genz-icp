@@ -4,8 +4,8 @@ from typing import Optional
 class DataConfig(BaseModel):
     max_range: float = 100.0
     min_range: float = 0.5
-    deskew: bool = False
-    # deskew: bool = True
+    # deskew: bool = False
+    deskew: bool = True
 
 
 class MappingConfig(BaseModel):
