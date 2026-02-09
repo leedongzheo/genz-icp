@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-
+from typing import Optional
 
 class DataConfig(BaseModel):
     max_range: float = 100.0
