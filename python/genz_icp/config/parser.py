@@ -20,22 +20,46 @@ class GenZPipelineConfig(BaseSettings):
     adaptive_threshold: AdaptiveThresholdConfig = AdaptiveThresholdConfig()
 
 
+# def _yaml_source(config_file: Optional[Path]) -> Dict[str, Any]:
+#     if config_file is None:
+#         return {}
+#     yaml = importlib.import_module("yaml")
+#     with open(config_file) as cfg_file:
+#         return yaml.safe_load(cfg_file) or {}
 def _yaml_source(config_file: Optional[Path]) -> Dict[str, Any]:
     if config_file is None:
         return {}
-    yaml = importlib.import_module("yaml")
+    try:
+        yaml = importlib.import_module("yaml")
+    except ModuleNotFoundError:
+        # Fallback cơ bản nếu không có pyyaml (dù nên cài)
+        return {}
+        
     with open(config_file) as cfg_file:
         return yaml.safe_load(cfg_file) or {}
 
-
+# def load_config(config_file: Optional[Path]) -> GenZPipelineConfig:
+#     config = GenZPipelineConfig(**_yaml_source(config_file))
+#     if config.data.max_range < config.data.min_range:
+#         config.data.min_range = 0.0
+#     return config
 def load_config(config_file: Optional[Path]) -> GenZPipelineConfig:
+    """Load configuration from an optional yaml file."""
     config = GenZPipelineConfig(**_yaml_source(config_file))
+
+    # 1. Logic sửa lỗi min range (giữ nguyên)
     if config.data.max_range < config.data.min_range:
         config.data.min_range = 0.0
+
+    # 2. Logic TỰ ĐỘNG TÍNH VOXEL SIZE (Mới thêm vào)
+    # Giống hệt KISS-ICP: Nếu không set voxel_size, nó sẽ lấy max_range / 100
+    if config.mapping.voxel_size is None:
+        config.mapping.voxel_size = float(config.data.max_range / 100.0)
+
     return config
 
-
 def to_genz_config(config: GenZPipelineConfig) -> GenZConfig:
+    assert config.mapping.voxel_size is not None, "Voxel size has not been computed!"
     return GenZConfig(
         max_range=config.data.max_range,
         min_range=config.data.min_range,
