@@ -142,7 +142,7 @@ std::tuple<Eigen::Matrix6d, Eigen::Vector6d> BuildLinearSystem(
 
     return std::make_tuple(JTJ, JTr);
 }
-
+/*
 void VisualizeStatus(size_t planar_count, size_t non_planar_count, double alpha) {
     const int bar_width = 52;
     const std::string planar_color = "\033[1;38;2;0;119;187m";
@@ -171,7 +171,7 @@ void VisualizeStatus(size_t planar_count, size_t non_planar_count, double alpha)
     std::cout.flush();
 }
 }  // namespace
-
+*/
 namespace genz_icp {
 
 Registration::Registration(int max_num_iteration, double convergence_criterion)
